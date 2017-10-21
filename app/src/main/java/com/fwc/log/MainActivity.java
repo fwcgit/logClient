@@ -19,7 +19,7 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         final TelLog telLog = new TelLog();
-        telLog.nativeConnectServer("139.196.104.98",38888);
+        telLog.nativeConnectServer("192.168.1.102",38888);
         telLog.connect();
 
         findViewById(R.id.button).setOnClickListener(new View.OnClickListener() {

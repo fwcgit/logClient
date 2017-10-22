@@ -30,6 +30,7 @@ static jobject gObj = NULL;
 
 void sendHearData();
 void callConnectStatus();
+void crash_handle(int flag);
 
 static int CreateTcpSocket(JNIEnv *env,jobject obj)
 {
@@ -146,6 +147,7 @@ void* read_socket_data_thread(void*)
                             jbyteArray ba = env->NewByteArray(recvSize);
 
                             jbyte *jBytes = (jbyte*)malloc(recvSize* sizeof(jbyte));
+                            memset(jBytes,0,recvSize* sizeof(jbyte));
 
                             for(int i = 0;i < recvSize;i++)
                             {

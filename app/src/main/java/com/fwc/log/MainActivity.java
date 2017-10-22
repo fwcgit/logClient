@@ -22,27 +22,21 @@ public class MainActivity extends AppCompatActivity {
         telLog.nativeConnectServer("192.168.1.102",38888);
         telLog.connect();
 
+        Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
+            @Override
+            public void uncaughtException(Thread thread, Throwable throwable) {
+                telLog.sendLog(throwable);
+                telLog.nativeFree();
+            }
+        });
         findViewById(R.id.button).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                try{
-                    String str = null;
-                    str.length();
 
-                }catch(Exception e){
-                    Writer writer = new StringWriter();
-                    PrintWriter printWriter = new PrintWriter(writer);
-                    e.printStackTrace(printWriter);
-                    Throwable cause = e.getCause();
-                    while (cause != null) {
-                        cause.printStackTrace(printWriter);
-                        cause = cause.getCause();
-                    }
-                    printWriter.close();
-                    String result = writer.toString();
+                String str = null;
+                str.length();
 
-                    telLog.sendLog(result);
-                }
+
             }
         });
     }

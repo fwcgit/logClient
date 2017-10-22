@@ -3,6 +3,10 @@ package com.fwc.log;
 import android.os.Build;
 import android.util.Log;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.io.Writer;
+
 /**
  * Created by fwc on 2017/10/21.
  */
@@ -58,7 +62,20 @@ public class TelLog {
 
     public void sendLog(String str){
         if(isConnect()){
-            sendData(Build.BOARD+"_"+Build.MODEL+":"+str);
+            sendData(Build.BOARD+"_"+Build.MODEL+">>"+str);
+        }
+    }
+
+    public void sendLog(Throwable throwable){
+        if(isConnect()){
+            Writer writer = new StringWriter();
+            PrintWriter printWriter = new PrintWriter(writer);
+            if (throwable != null) {
+                throwable.printStackTrace(printWriter);
+            }
+            printWriter.close();
+
+            sendData(Build.BOARD+"_"+Build.MODEL+">>"+writer.toString());
         }
     }
 }

@@ -17,30 +17,36 @@
 #define logD(...)  __android_log_print(ANDROID_LOG_DEBUG,"smart jni log", __VA_ARGS__)
 
 static int socket_id = 0;
-static bool is_connect = false;
-static bool is_run = true;
-static char* server_ip = NULL;
-static int server_port = 0;
-static bool is_try_connect = false;
-static bool connect_backup = false;
-static pthread_t  pthread_ID = NULL;
+static volatile bool is_connect = false;
+static volatile bool is_run = true;
+static  char* server_ip = NULL;
+static  int server_port = 0;
+static volatile bool is_try_connect = false;
+static volatile bool connect_backup = false;
+static volatile bool is_init_connect = false;
 
-static JavaVM *gVm = NULL;
-static jobject gObj = NULL;
+static pthread_t  pthread_ID = NULL;
+static  JavaVM *gVm = NULL;
+static  jobject gObj = NULL;
+
+static volatile int disconnect_count = 0;
+
+static volatile bool history_connect = false;
 
 void sendHearData();
 void callConnectStatus();
-void crash_handle(int flag);
+void connect_server();
+void connect_server_try();
 
 static int CreateTcpSocket(JNIEnv *env,jobject obj)
 {
-    logD("create new Tcp socket.....");
+    logD("create new Tcp socket");
 
     int tcpSocket = socket(PF_INET,SOCK_STREAM,0);
 
     if(-1 == tcpSocket)
     {
-        logD("java/io/IOException",errno);
+        logD("create new Tcp socket fail");
     }
 
     return tcpSocket;
@@ -59,7 +65,7 @@ static void ConnectToAddress(JNIEnv *env,jobject obj,int socketID, const char *i
     if(0 == inet_aton(ip,&(address.sin_addr)))
     {
         is_connect = false;
-        logD("java/io/IOException",errno);
+        logD(" address connect fail");
     }
     else
     {
@@ -68,11 +74,16 @@ static void ConnectToAddress(JNIEnv *env,jobject obj,int socketID, const char *i
         if(-1 == connect(socketID,(struct sockaddr *)&address, sizeof(address)))
         {
             is_connect = false;
-            logD("java/io/IOException",errno);
+
+//            shutdown(socketID,2);
+//            close(socketID);
+
+            logD("connect fail");
         }
         else
         {
 
+            history_connect = true;
             is_connect = true;
             callConnectStatus();
             logD("Connected....");
@@ -85,7 +96,7 @@ static void ConnectToAddress(JNIEnv *env,jobject obj,int socketID, const char *i
 void* read_socket_data_thread(void*)
 {
 
-    logD("read_socket_data_thread 1");
+    logD("read_socket_data_thread");
 
     JNIEnv *env = NULL;
     int res  = gVm->AttachCurrentThread(&env,NULL);
@@ -103,20 +114,8 @@ void* read_socket_data_thread(void*)
 
                 if(!is_connect){
 
-                    is_try_connect = false;
+                    connect_server_try();
 
-                    logD("try socket connect");
-
-                    connect_backup = true;
-
-                    shutdown(socket_id,2);
-                    close(socket_id);
-
-                    socket_id = CreateTcpSocket(env,gObj);
-
-                    ConnectToAddress(env,gObj,socket_id,server_ip,(unsigned short)server_port);
-
-                    connect_backup = false;
                 }
             }
         }
@@ -178,7 +177,13 @@ void* read_socket_data_thread(void*)
 
       }
 
-       gVm->DetachCurrentThread();
+        gVm->DetachCurrentThread();
+
+        pthread_ID = NULL;
+
+        logD("read_socket_data_thread exit");
+
+        pthread_exit(0);
 
     }else{
         logD("read_socket_data_thread %d",res);
@@ -202,7 +207,7 @@ static void sendToSocket(JNIEnv *env,jobject obj,const char *buffer,size_t buffe
         else
         {
             if(sendSize > 0) {
-                logD("send %d bytes: %s", sendSize, buffer);
+                logD("send %d bytes", sendSize);
             }
         }
     }
@@ -230,10 +235,12 @@ static void timer_task(int sig)
 
             if(!is_connect)
             {
-                if(jniEnv != NULL)
+                if(disconnect_count++ > 3)
                 {
                     is_try_connect = true;
+                    disconnect_count = 0;
                 }
+
             }else{
                 sendHearData();
             }
@@ -295,6 +302,8 @@ JNIEXPORT void JNICALL Java_com_fwc_log_TelLog_nativeConnectServer
     env->ReleaseStringUTFChars(ip,ipAddr);
 
     if(NULL == pthread_ID){
+
+        is_run = true;
 
         if(!pthread_create(&pthread_ID,NULL,read_socket_data_thread,(void *)NULL))
         {
@@ -385,10 +394,16 @@ JNIEXPORT void JNICALL Java_com_fwc_log_TelLog_nativeFree
 JNIEXPORT void JNICALL Java_com_fwc_log_TelLog_disConnect
         (JNIEnv *env, jobject obj)
 {
+
+    is_run = false;
+
     alarm(0);
     shutdown(socket_id,2);
     close(socket_id);
 
+    is_connect = false;
+
+    socket_id = NULL;
     server_ip = NULL;
 }
 
@@ -396,10 +411,19 @@ JNIEXPORT void JNICALL Java_com_fwc_log_TelLog_connect
         (JNIEnv *env, jobject obj)
 {
 
-    if(NULL != server_ip){
+    if(NULL != server_ip && !is_init_connect){
+
+        is_init_connect = true;
+
+        connect_server();
 
         signal(SIGALRM,timer_task);
         alarm(10);
+    }else{
+
+        signal(SIGALRM,timer_task);
+        alarm(10);
+
     }
 
 }
@@ -424,6 +448,65 @@ void callConnectStatus()
         {
             jniEnv->CallVoidMethod(gObj,methodID,is_connect ?  1 : 0);
         }
+    }
+}
+
+void connect_server(){
+
+    JNIEnv *jniEnv = NULL;
+
+    gVm->GetEnv((void **)&jniEnv,JNI_VERSION_1_6);
+
+    if(NULL != jniEnv){
+
+        connect_backup = true;
+
+        socket_id = CreateTcpSocket(jniEnv,gObj);
+
+        ConnectToAddress(jniEnv,gObj,socket_id,server_ip,(unsigned short)server_port);
+
+        connect_backup = false;
+
+    }
+
+
+}
+
+void connect_server_try(){
+
+    is_try_connect = false;
+
+    if(connect_backup)
+        return;
+
+
+    logD("try socket connect");
+
+    JNIEnv *jniEnv = NULL;
+
+    gVm->GetEnv((void **)&jniEnv,JNI_VERSION_1_6);
+
+    if(NULL != jniEnv){
+
+        connect_backup = true;
+
+        if(history_connect){
+
+            history_connect = false;
+
+            if(NULL != socket_id){
+
+                shutdown(socket_id,2);
+                close(socket_id);
+            }
+
+            socket_id = CreateTcpSocket(jniEnv,gObj);
+        }
+
+        ConnectToAddress(jniEnv,gObj,socket_id,server_ip,(unsigned short)server_port);
+
+        connect_backup = false;
+
     }
 }
 

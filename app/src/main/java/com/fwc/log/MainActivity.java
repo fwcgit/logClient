@@ -1,14 +1,8 @@
 package com.fwc.log;
 
-import android.os.Handler;
-import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.support.v7.app.AppCompatActivity;
 import android.view.View;
-import android.widget.TextView;
-
-import java.io.PrintWriter;
-import java.io.StringWriter;
-import java.io.Writer;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -19,7 +13,7 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         final TelLog telLog = new TelLog();
-        telLog.nativeConnectServer("192.168.1.102",38888);
+        telLog.nativeConnectServer("10.40.252.237",38888);
         telLog.connect();
 
         Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {

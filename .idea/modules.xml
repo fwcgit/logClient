@@ -2,6 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
+      <module fileurl="file://$PROJECT_DIR$/LogClient.iml" filepath="$PROJECT_DIR$/LogClient.iml" />
       <module fileurl="file://$PROJECT_DIR$/LogRemote.iml" filepath="$PROJECT_DIR$/LogRemote.iml" />
       <module fileurl="file://$PROJECT_DIR$/app/app.iml" filepath="$PROJECT_DIR$/app/app.iml" />
     </modules>
